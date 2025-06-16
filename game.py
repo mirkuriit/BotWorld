@@ -15,52 +15,32 @@ class PlayerType(Enum):
     NEFOR = (0, 0, 255)
     DEAD = (0, 0, 0)
 
+def init_sprites():
+    sprites = {}
+    scaled_player_sprite = pg.transform.scale(
+        pg.image.load("img.png"),
+        (settings.IMG_SCALE, settings.IMG_SCALE)
+    )
+
+    for player_type in PlayerType:
+        colored_sprite = scaled_player_sprite.copy()
+        colored_sprite.fill(
+            player_type.value, special_flags=pg.BLEND_MULT)
+        sprites[player_type] = colored_sprite
+
+    return sprites
+
+SPRITES = init_sprites()
+
+print(SPRITES)
 
 class Player:
-    # Классовые переменные для хранения предзагруженных и масштабированных спрайтов
-    _sprites = {}
-    _sprite_loaded = False
-
-    @classmethod
-    def load_sprites(cls, sprite_path, scaler):
-        """Загружает и масштабирует спрайты для всех типов игроков"""
-        if cls._sprite_loaded:
-            return
-
-        try:
-            # Загружаем базовый спрайт
-            base_sprite = pg.image.load(sprite_path)
-            # Масштабируем до нужного размера
-            scaled_sprite = pg.transform.scale(base_sprite, (scaler, scaler))
-
-            # Создаем цветные версии для каждого типа игрока
-            for player_type in PlayerType:
-                colored_sprite = scaled_sprite.copy()
-                # Применяем цветовую маску
-                colored_sprite.fill(
-                    player_type.value, special_flags=pg.BLEND_MULT)
-                cls._sprites[player_type] = colored_sprite
-
-        except pg.error:
-            # Если файл не найден, создаем простые квадратные спрайты
-            for player_type in PlayerType:
-                sprite = pg.Surface((scaler, scaler))
-                sprite.fill(player_type.value)
-                cls._sprites[player_type] = sprite
-
-        cls._sprite_loaded = True
-
     def __init__(self, scaler, x: int, y: int, t: PlayerType):
         self.scaler = scaler
         self.x = x
         self.y = y
         self.type: PlayerType = t
-
-        # Загружаем спрайты при создании первого игрока
-        if not Player._sprite_loaded:
-            Player.load_sprites("img.png", scaler)
-
-        self.sprite = Player._sprites[self.type]
+        self.sprite = SPRITES[self.type] if self.type != PlayerType.DEAD else None
 
     def is_dead(self):
         return self.type == PlayerType.DEAD
@@ -70,14 +50,15 @@ class Player:
 
     def dead(self):
         self.type = PlayerType.DEAD
-        self.sprite = Player._sprites[self.type]
+        self.sprite = SPRITES[self.type]
 
     def born(self):
         self.type = PlayerType.NEFOR
-        self.sprite = Player._sprites[self.type]
+        self.sprite = SPRITES[self.type]
 
     def draw(self):
-        screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
+        if self.is_alive():
+            screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
 
     def live(self):
         match self.type:
@@ -118,7 +99,7 @@ class World:
             self.height,
             self.fill_strategy,
             self.dead_coef
-            )
+        )
 
     def generate_world(
             self,
@@ -126,35 +107,35 @@ class World:
             height: int,
             fill_strategy: str,
             dead_coef: int
-            ) -> list[list[Player]]:
+    ) -> list[list[Player]]:
         num_players = width * height
-        player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [
-            PlayerType.NEFOR] * int((1 - dead_coef) * num_players)
+        player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * int(
+            (1 - dead_coef) * num_players)
         if len(player_types) > num_players:
             player_types = player_types[::-1][:num_players]
         elif len(player_types) < num_players:
             player_types += [PlayerType.DEAD] * (
-                        num_players - len(player_types))
-        world = [[Player(
-            scaler=settings.RECT_SCALE,
-            x=i,
-            y=j,
-            t=player_types.pop(randint(0, len(player_types) - 1))) for i in
-                  range(width)] for j in range(height)]
+                    num_players - len(player_types))
+        world = [
+            [
+            Player(scaler=settings.IMG_SCALE,
+                   x=i,
+                   y=j,
+                   t=player_types.pop(randint(0, len(player_types) - 1))) for i in
+            range(width)
+            ]
+            for j in range(height)]
         return world
 
     @classmethod
     def from_world(cls, source_world):
-        """Фабричный метод для создания копии мира"""
-        new_world = cls.__new__(cls)  # Создаем экземпляр без вызова __init__
+        new_world = cls.__new__(cls)
 
-        # Копируем все атрибуты
         new_world.width = source_world.width
         new_world.height = source_world.height
         new_world.dead_coef = source_world.dead_coef
         new_world.fill_strategy = source_world.fill_strategy
 
-        # Глубокое копирование игроков
         new_world.world = [
             [
                 Player(
@@ -173,7 +154,8 @@ class World:
     def draw(self):
         for row in self.world:
             for player in row:
-                player.draw()
+                if player.is_alive():
+                    player.draw()
 
     def __repr__(self):
         s = ""
@@ -219,8 +201,10 @@ def step(OLD_WORLD, NEW_WORLD):
 OLD_WORLD: World = World(
     settings.WORLD_WIDTH, settings.WORLD_HEIGHT, dead_coef=settings.DEAD_COEF)
 
+pg.init()
 screen = pg.display.set_mode(settings.RES)
 clock = pg.time.Clock()
+
 
 while True:
     for event in pg.event.get():
