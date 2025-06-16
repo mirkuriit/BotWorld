@@ -5,6 +5,7 @@ from random import randint, choice
 from enum import Enum
 from pprint import pprint
 import copy
+import numpy as np
 
 from abc import abstractmethod
 
@@ -204,7 +205,6 @@ while True:
     clock.tick(settings.FPS)
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
-    pg.time.wait(100)
     OLD_WORLD.draw()
     pg.display.flip()
 
