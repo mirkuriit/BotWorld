@@ -1,12 +1,9 @@
-import pygame as pg
 import settings
-from random import randint, choice
-from enum import Enum
-from pprint import pprint
-import copy
-import time
+import pygame as pg
 
+from random import randint, choice
 from abc import abstractmethod
+from enum import Enum
 
 
 class PlayerType(Enum):
@@ -48,11 +45,6 @@ def init_sprites():
     sprites[PlayerType.FRIENDLY] = scaled_friendly_sprite
 
     return sprites
-
-
-SPRITES = init_sprites()
-
-print(SPRITES)
 
 
 class GameObject:
@@ -133,7 +125,7 @@ class Player(GameObject):
 
     def _neutral_move(self):
         pass
-
+    ### TODO not bool
     def _friendly_move(self):
         while True:  # Ждём любое событие
             for event in pg.event.get():
@@ -141,7 +133,7 @@ class Player(GameObject):
                     pg.quit()
                     return False
 
-                if event.type == pg.KEYDOWN:  # Только событие нажатия
+                if event.type == pg.KEYDOWN:
                     if event.key == pg.K_LEFT:
                         print('Левая стрелка', f"{self.x}, {self.y}")
                         OLD_WORLD.swap_game_object(self.x, self.y, self.x - 1, self.y)
@@ -164,11 +156,7 @@ class Player(GameObject):
                         OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y + 1)
                         print('Стрелка вниз', f"{self.x}, {self.y}")
                         return True
-
-            # Не нагружаем процессор в ожидании
             pg.time.delay(100)
-        # self.move_right()
-        print("friendly move")
 
     def __repr__(self):
         return f"x:{self.x} y:{self.y} {self.type.name}"
@@ -264,29 +252,7 @@ class World:
         return s
 
 
-def get_neighbours(player: Player, world: World) -> list[Player]:
-    px, py = player.x, player.y
-    neighbours_tmp = [
-        (px + 1, py + 1),
-        (px, py + 1),
-        (px - 1, py + 1),
-        (px + 1, py),
-        (px - 1, py),
-        (px - 1, py - 1),
-        (px, py - 1),
-        (px + 1, py - 1),
-    ]
-    neighbours_coords = [(x, y) for x, y in neighbours_tmp if
-                         (x >= 0) and (y >= 0) and \
-                         (x <= world.width - 1) and (y <= world.height - 1)]
-    neighbors = [world.world[y][x] for x, y in neighbours_coords]
-    return neighbors
-
-
-def step(OLD_WORLD, NEW_WORLD):
-    return NEW_WORLD
-
-
+SPRITES = init_sprites()
 OLD_WORLD: World = World(
     settings.WORLD_WIDTH, settings.WORLD_HEIGHT, dead_coef=settings.DEAD_COEF)
 
@@ -302,9 +268,6 @@ while True:
     clock.tick(settings.FPS)
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
-
-    # NEW_WORLD = World.from_world(OLD_WORLD)
-    # OLD_WORLD = step(OLD_WORLD, OLD_WORLD)
 
     OLD_WORLD.draw()
     pg.display.flip()

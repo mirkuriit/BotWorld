@@ -1,13 +1,8 @@
 import pygame as pg
 import settings
 from pygame import Rect
-from random import randint, choice
+from random import randint
 from enum import Enum
-from pprint import pprint
-import copy
-import numpy as np
-
-from abc import abstractmethod
 
 
 class PlayerType(Enum):
@@ -117,16 +112,12 @@ class World(list):
 
     @classmethod
     def from_world(cls, source_world):
-        """Фабричный метод для создания копии мира"""
-        new_world = cls.__new__(cls)  # Создаем экземпляр без вызова __init__
-
-        # Копируем все атрибуты
+        new_world = cls.__new__(cls)
         new_world.width = source_world.width
         new_world.height = source_world.height
         new_world.dead_coef = source_world.dead_coef
         new_world.fill_strategy = source_world.fill_strategy
 
-        # Глубокое копирование игроков
         new_world.world = [
             [
                 Player(
