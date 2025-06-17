@@ -127,7 +127,7 @@ class Player(GameObject):
         pass
     ### TODO not bool
     def _friendly_move(self):
-        while True:  # Ждём любое событие
+        while True:  ### TODO Ну это мем ебаный вообще
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     pg.quit()
