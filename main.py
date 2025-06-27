@@ -4,7 +4,9 @@ import pygame as pg
 from random import randint, choice
 from abc import abstractmethod
 from enum import Enum
-
+from loguru import logger
+from functools import wraps
+from itertools import chain
 
 class PlayerType(Enum):
     AGRESSIVE = (255, 0, 0)
@@ -12,10 +14,19 @@ class PlayerType(Enum):
     FRIENDLY = (0, 255, 0)
     NEFOR = (0, 0, 255)
     DEAD = (0, 0, 0)
+    PLAYER = (12, 230, 150)
 
 
 def init_sprites():
     sprites = {}
+
+    scaled_player_sprite = pg.transform.scale(
+        pg.image.load("player.png"),
+        (settings.IMG_SCALE, settings.IMG_SCALE)
+    )
+    scaled_player_sprite.fill(
+        PlayerType.PLAYER.value, special_flags=pg.BLEND_MULT
+    )
 
     scaled_nefor_sprite = pg.transform.scale(
         pg.image.load("player.png"),
@@ -23,14 +34,6 @@ def init_sprites():
     )
     scaled_nefor_sprite.fill(
         PlayerType.NEFOR.value, special_flags=pg.BLEND_MULT
-    )
-
-    scaled_friendly_sprite = pg.transform.scale(
-        pg.image.load("player.png"),
-        (settings.IMG_SCALE, settings.IMG_SCALE)
-    )
-    scaled_friendly_sprite.fill(
-        PlayerType.FRIENDLY.value, special_flags=pg.BLEND_MULT
     )
 
     apple = pg.transform.scale(
@@ -41,20 +44,31 @@ def init_sprites():
         PlayerType.APPLE.value, special_flags=pg.BLEND_MULT)
 
     sprites[PlayerType.APPLE] = apple
+    sprites[PlayerType.PLAYER] = scaled_player_sprite
     sprites[PlayerType.NEFOR] = scaled_nefor_sprite
-    sprites[PlayerType.FRIENDLY] = scaled_friendly_sprite
+
+    sprites[PlayerType.FRIENDLY] = scaled_nefor_sprite
 
     return sprites
 
+def move_log(func):
+    @wraps(func)
+    def inner(o):
+        if o.is_alive():
+            logger.info(f"{o.id}`s {o.type} move")
+        func(o)
+    return inner
 
 class GameObject:
-    def __init__(self, scaler, x: int, y: int, t: PlayerType):
+    def __init__(self, scaler, x: int, y: int, t: PlayerType, hp: int):
         self.scaler = scaler
         self.x = x
         self.y = y
         self.type: PlayerType = t
         self.sprite = SPRITES[self.type] if self.type != PlayerType.DEAD else None
         self.has_move = True
+        self.id = x + y * settings.WORLD_WIDTH
+        self.hp = hp
 
     def is_dead(self):
         return self.type == PlayerType.DEAD
@@ -62,9 +76,22 @@ class GameObject:
     def is_alive(self):
         return not (self.type == PlayerType.DEAD)
 
+    def increase_hp(self, n = 1):
+        self.hp += n
+
+    def decrease_hp(self, n = 1):
+        self.hp -= n
+
     def draw(self):
         if self.is_alive():
             screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
+        font = pg.font.SysFont(None, 24)
+
+        text_id = font.render(str(self.id), 1, (255, 255, 255))
+        text_hp = font.render(str(self.hp), 1, (255, 255, 255))
+        screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
+        screen.blit(text_hp, (self.x * self.scaler + self.scaler//2.5, self.y * self.scaler + self.scaler//2))
+
 
     def dead(self):
         self.type = PlayerType.DEAD
@@ -79,14 +106,14 @@ class Food(GameObject):
     def __init__(self, scaler, x: int, y: int, t: PlayerType):
         super().__init__(scaler, x, y, t)
 
+    @move_log
     def live(self):
-        print("apple move")
+        pass
 
 
 class Player(GameObject):
-    def __init__(self, scaler, x: int, y: int, t: PlayerType):
-        super().__init__(scaler, x, y, t)
-        self.hp = 100
+    def __init__(self, scaler, x: int, y: int, t: PlayerType, hp: int):
+        super().__init__(scaler, x, y, t, hp)
         self.speed = 1
 
     def increase_level(self):
@@ -107,6 +134,7 @@ class Player(GameObject):
     def move_down(self):
         self.y += self.speed
 
+    @move_log
     def live(self):
         match self.type:
             case PlayerType.AGRESSIVE:
@@ -115,10 +143,12 @@ class Player(GameObject):
                 self._friendly_move()
             case PlayerType.NEFOR:
                 self._nefor_move()
+            case PlayerType.PLAYER:
+                self._player_move()
         self.has_move = False
 
     def _nefor_move(self):
-        print("nefor_move")
+        pass
 
     def _argessive_move(self):
         pass
@@ -127,6 +157,9 @@ class Player(GameObject):
         pass
     ### TODO not bool
     def _friendly_move(self):
+        pass
+
+    def _player_move(self):
         while True:  ### TODO Ну это мем ебаный вообще
             for event in pg.event.get():
                 if event.type == pg.QUIT:
@@ -135,26 +168,29 @@ class Player(GameObject):
 
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_LEFT:
-                        print('Левая стрелка', f"{self.x}, {self.y}")
-                        OLD_WORLD.swap_game_object(self.x, self.y, self.x - 1, self.y)
-                        print('Левая стрелка', f"{self.x}, {self.y}")
+                        if self.x == 0:
+                            logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
+                        else:
+                            OLD_WORLD.swap_game_object(self.x, self.y, self.x - 1, self.y)
                         return True
                     elif event.key == pg.K_RIGHT:
-                        print('Правая стрелка', f"{self.x}, {self.y}")
-
-                        OLD_WORLD.swap_game_object(self.x, self.y, self.x + 1, self.y)
-                        print('Правая стрелка', f"{self.x}, {self.y}")
-
+                        if self.x == settings.WORLD_WIDTH-1:
+                            logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
+                        else:
+                            OLD_WORLD.swap_game_object(self.x, self.y, self.x + 1, self.y)
                         return True
                     elif event.key == pg.K_UP:
-                        print('Стрелка вверх', f"{self.x}, {self.y}")
-                        OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y - 1)
-                        print('Стрелка вверх', f"{self.x}, {self.y}")
+                        if self.y == 0:
+                            logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
+                        else:
+                            OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y - 1)
                         return True
                     elif event.key == pg.K_DOWN:
-                        print('Стрелка вниз', f"{self.x}, {self.y}")
-                        OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y + 1)
-                        print('Стрелка вниз', f"{self.x}, {self.y}")
+                        if self.y == settings.WORLD_HEIGHT-1:
+                            logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
+                        else:
+                            OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y + 1)
+
                         return True
             pg.time.delay(100)
 
@@ -187,7 +223,7 @@ class World:
     ) -> list[list[Player]]:
         num_players = width * height
         player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 4 + [
-            PlayerType.APPLE] * 4 + [PlayerType.FRIENDLY]
+            PlayerType.APPLE] * 4 + [PlayerType.PLAYER]
         if len(player_types) > num_players:
             player_types = player_types[::-1][:num_players]
         elif len(player_types) < num_players:
@@ -199,8 +235,9 @@ class World:
                     scaler=settings.IMG_SCALE,
                     x=i,
                     y=j,
-                    t=player_types.pop(randint(0, len(player_types) - 1))) for i in
-                range(width)
+                    t=player_types.pop(randint(0, len(player_types) - 1)),
+                    hp=randint(1, 20)
+                ) for i in range(width)
             ]
             for j in range(height)]
         return world
@@ -235,6 +272,14 @@ class World:
                 if player.is_alive():
                     player.draw()
 
+    def live(self):
+        for player in chain.from_iterable(self.world):
+            player.decrease_hp()
+
+            if player.hp == 0:
+                player.type = PlayerType.DEAD
+
+
     def swap_game_object(self, x1, y1, x2, y2):
 
         obj1 = self.world[y1][x1]
@@ -244,6 +289,9 @@ class World:
 
         obj1.x, obj2.x = x2, x1
         obj1.y, obj2.y = y2, y1
+        tmp_id = obj1.id
+        obj1.id = obj2.id
+        obj2.id = tmp_id
 
     def __repr__(self):
         s = ""
@@ -260,8 +308,10 @@ pg.init()
 screen = pg.display.set_mode(settings.RES)
 clock = pg.time.Clock()
 
-print(OLD_WORLD)
+move = 0
 while True:
+    logger.info(f"MOVE {move}")
+    move += 1
     for event in pg.event.get():
         if event.type == pg.QUIT:
             pg.quit()
@@ -269,13 +319,17 @@ while True:
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
 
+    OLD_WORLD.live()
     OLD_WORLD.draw()
     pg.display.flip()
     for row in OLD_WORLD.world:
         for player in row:
             player.has_move = True
+    players = []
     for row in OLD_WORLD.world:
         for player in row:
-            if player.has_move:
-                player.live()
-    print(OLD_WORLD)
+            players.append(player)
+
+    for player in players:
+        if player.has_move:
+            player.live()
