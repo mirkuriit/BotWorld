@@ -61,7 +61,7 @@ def init_sprites():
 
     return sprites
 
-
+### TODO move decorator something out like a log.py
 def move_log(func):
     @wraps(func)
     def inner(o: GameObject):
@@ -99,7 +99,6 @@ class GameObject:
         self.hp -= n
 
     def draw(self):
-
         screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
         font = pg.font.SysFont(None, 24)
         #text_id = font.render(str(self.id), 1, (255, 255, 255))
@@ -131,24 +130,6 @@ class Player(GameObject):
         super().__init__(scaler, x, y, t, hp)
         self.speed = 1
 
-    def increase_level(self):
-        self.hp += 1
-
-    def decrease_level(self):
-        self.hp -= 1
-
-    def move_right(self):
-        self.x += self.speed
-
-    def move_left(self):
-        self.x -= self.speed
-
-    def move_up(self):
-        self.y -= self.speed
-
-    def move_down(self):
-        self.y += self.speed
-
     @move_log
     def live(self):
         match self.type:
@@ -171,7 +152,6 @@ class Player(GameObject):
     def _neutral_move(self):
         pass
 
-    ### TODO not bool
     def _friendly_move(self):
         pass
 
@@ -286,8 +266,10 @@ class World:
     def draw(self):
         for player in chain.from_iterable(self.world):
                 player.draw()
+        ### TODO other draw
 
     def live(self):
+        ### TODO main checks and player lives
         for player in chain.from_iterable(self.world):
             player.decrease_hp()
 
@@ -295,15 +277,17 @@ class World:
                 logger.warning(f"{player.id} was killed")
                 player.dead()
 
+
     def swap_game_object(self, x1, y1, x2, y2):
 
         obj1: GameObject = self.world[y1][x1]
         obj2: GameObject = self.world[y2][x2]
 
+        ### TODO move out the checkouts into the checkout func or World.live()
         if obj1.type != PlayerType.DEAD and obj2.type == PlayerType.APPLE:
             obj1.increase_hp(obj2.hp)
             obj2.dead()
-
+        ### TODO move out the checkouts into the checkout func or World.live()
         elif obj1.type != PlayerType.DEAD and obj2.type != PlayerType.DEAD:
             if obj1.hp == obj2.hp:
                 obj1.dead()
@@ -348,6 +332,7 @@ while True:
     clock.tick(settings.FPS)
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
+    ### TODO clean main cicle
     for i in range(settings.WORLD_WIDTH):
         pg.draw.line(
             screen, (116, 116, 116, 100), (i * settings.IMG_SCALE, 0),
