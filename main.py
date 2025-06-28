@@ -1,5 +1,7 @@
 import settings
 import pygame as pg
+import sys
+import time
 
 from random import randint, choice
 from abc import abstractmethod
@@ -8,13 +10,14 @@ from loguru import logger
 from functools import wraps
 from itertools import chain
 
+
 class PlayerType(Enum):
-    AGRESSIVE = (255, 0, 0)
-    APPLE = (170, 50, 20)
-    FRIENDLY = (0, 255, 0)
-    NEFOR = (0, 0, 255)
-    DEAD = (0, 0, 0)
-    PLAYER = (12, 230, 150)
+    AGRESSIVE = None
+    APPLE = (219, 214, 93)
+    FRIENDLY = None
+    NEFOR = (225, 101, 47)
+    DEAD = (39, 39, 39)
+    PLAYER = (20, 167, 108)
 
 
 def init_sprites():
@@ -36,28 +39,41 @@ def init_sprites():
         PlayerType.NEFOR.value, special_flags=pg.BLEND_MULT
     )
 
-    apple = pg.transform.scale(
+    scaled_apple_sprite = pg.transform.scale(
         pg.image.load("food.png"),
         (settings.IMG_SCALE, settings.IMG_SCALE)
-        )
-    apple.fill(
+    )
+    scaled_apple_sprite.fill(
         PlayerType.APPLE.value, special_flags=pg.BLEND_MULT)
 
-    sprites[PlayerType.APPLE] = apple
+    scaled_dead_sprite = pg.transform.scale(
+        pg.image.load("field.png"),
+        (settings.IMG_SCALE, settings.IMG_SCALE)
+    )
+    scaled_dead_sprite.fill(
+        PlayerType.DEAD.value, special_flags=pg.BLEND_MULT)
+
+    sprites[PlayerType.APPLE] = scaled_apple_sprite
+    sprites[PlayerType.DEAD] = scaled_dead_sprite
     sprites[PlayerType.PLAYER] = scaled_player_sprite
     sprites[PlayerType.NEFOR] = scaled_nefor_sprite
-
     sprites[PlayerType.FRIENDLY] = scaled_nefor_sprite
 
     return sprites
 
+
 def move_log(func):
     @wraps(func)
-    def inner(o):
+    def inner(o: GameObject):
         if o.is_alive():
-            logger.info(f"{o.id}`s {o.type} move")
+            s = f"{o.id}`s {o.type} move"
+            if o.type == PlayerType.PLAYER:
+                s += f" current refs: {sys.getrefcount(o)}"
+            logger.info(s)
         func(o)
+
     return inner
+
 
 class GameObject:
     def __init__(self, scaler, x: int, y: int, t: PlayerType, hp: int):
@@ -65,10 +81,10 @@ class GameObject:
         self.x = x
         self.y = y
         self.type: PlayerType = t
-        self.sprite = SPRITES[self.type] if self.type != PlayerType.DEAD else None
+        self.sprite = SPRITES[self.type]
         self.has_move = True
         self.id = x + y * settings.WORLD_WIDTH
-        self.hp = hp
+        self.hp = -100 if t == PlayerType.DEAD else hp
 
     def is_dead(self):
         return self.type == PlayerType.DEAD
@@ -76,22 +92,21 @@ class GameObject:
     def is_alive(self):
         return not (self.type == PlayerType.DEAD)
 
-    def increase_hp(self, n = 1):
+    def increase_hp(self, n=1):
         self.hp += n
 
-    def decrease_hp(self, n = 1):
+    def decrease_hp(self, n=1):
         self.hp -= n
 
     def draw(self):
-        if self.is_alive():
-            screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
+
+        screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
         font = pg.font.SysFont(None, 24)
-
-        text_id = font.render(str(self.id), 1, (255, 255, 255))
-        text_hp = font.render(str(self.hp), 1, (255, 255, 255))
-        screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
-        screen.blit(text_hp, (self.x * self.scaler + self.scaler//2.5, self.y * self.scaler + self.scaler//2))
-
+        #text_id = font.render(str(self.id), 1, (255, 255, 255))
+        #screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
+        if self.is_alive():
+            text_hp = font.render(str(self.hp), 1, (255, 255, 255))
+            screen.blit(text_hp, (self.x * self.scaler + self.scaler // 2.5, self.y * self.scaler + self.scaler // 2))
 
     def dead(self):
         self.type = PlayerType.DEAD
@@ -155,6 +170,7 @@ class Player(GameObject):
 
     def _neutral_move(self):
         pass
+
     ### TODO not bool
     def _friendly_move(self):
         pass
@@ -174,7 +190,7 @@ class Player(GameObject):
                             OLD_WORLD.swap_game_object(self.x, self.y, self.x - 1, self.y)
                         return True
                     elif event.key == pg.K_RIGHT:
-                        if self.x == settings.WORLD_WIDTH-1:
+                        if self.x == settings.WORLD_WIDTH - 1:
                             logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
                         else:
                             OLD_WORLD.swap_game_object(self.x, self.y, self.x + 1, self.y)
@@ -186,7 +202,7 @@ class Player(GameObject):
                             OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y - 1)
                         return True
                     elif event.key == pg.K_DOWN:
-                        if self.y == settings.WORLD_HEIGHT-1:
+                        if self.y == settings.WORLD_HEIGHT - 1:
                             logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
                         else:
                             OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y + 1)
@@ -222,7 +238,8 @@ class World:
             dead_coef: int
     ) -> list[list[Player]]:
         num_players = width * height
-        player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 4 + [
+        ### TODO some algo for GameObjects allocation on game field
+        player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 10 + [
             PlayerType.APPLE] * 4 + [PlayerType.PLAYER]
         if len(player_types) > num_players:
             player_types = player_types[::-1][:num_players]
@@ -236,7 +253,7 @@ class World:
                     x=i,
                     y=j,
                     t=player_types.pop(randint(0, len(player_types) - 1)),
-                    hp=randint(1, 20)
+                    hp=randint(1, 100)
                 ) for i in range(width)
             ]
             for j in range(height)]
@@ -267,23 +284,36 @@ class World:
         return new_world
 
     def draw(self):
-        for row in self.world:
-            for player in row:
-                if player.is_alive():
-                    player.draw()
+        for player in chain.from_iterable(self.world):
+                player.draw()
 
     def live(self):
         for player in chain.from_iterable(self.world):
             player.decrease_hp()
 
             if player.hp == 0:
-                player.type = PlayerType.DEAD
-
+                logger.warning(f"{player.id} was killed")
+                player.dead()
 
     def swap_game_object(self, x1, y1, x2, y2):
 
-        obj1 = self.world[y1][x1]
-        obj2 = self.world[y2][x2]
+        obj1: GameObject = self.world[y1][x1]
+        obj2: GameObject = self.world[y2][x2]
+
+        if obj1.type != PlayerType.DEAD and obj2.type == PlayerType.APPLE:
+            obj1.increase_hp(obj2.hp)
+            obj2.dead()
+
+        elif obj1.type != PlayerType.DEAD and obj2.type != PlayerType.DEAD:
+            if obj1.hp == obj2.hp:
+                obj1.dead()
+                obj2.dead()
+            elif obj1.hp >= obj2.hp:
+                obj1.increase_hp(obj2.hp)
+                obj2.dead()
+            else:
+                obj2.increase_hp(obj1.hp)
+                obj1.dead()
 
         self.world[y1][x1], self.world[y2][x2] = obj2, obj1
 
@@ -318,6 +348,14 @@ while True:
     clock.tick(settings.FPS)
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
+    for i in range(settings.WORLD_WIDTH):
+        pg.draw.line(
+            screen, (116, 116, 116, 100), (i * settings.IMG_SCALE, 0),
+            (i * settings.IMG_SCALE, settings.WORLD_HEIGHT * settings.IMG_SCALE), 10)
+    for j in range(settings.WORLD_WIDTH):
+        pg.draw.line(
+            screen, (116, 116, 116, 10), (0, j * settings.IMG_SCALE),
+            (settings.WORLD_WIDTH * settings.IMG_SCALE, j * settings.IMG_SCALE), 10)
 
     OLD_WORLD.live()
     OLD_WORLD.draw()
