@@ -11,6 +11,11 @@ from functools import wraps
 from itertools import chain
 
 
+pg.init()
+screen = pg.display.set_mode(settings.RES)
+clock = pg.time.Clock()
+
+
 class PlayerType(Enum):
     AGRESSIVE = None
     APPLE = (219, 214, 93)
@@ -18,6 +23,12 @@ class PlayerType(Enum):
     NEFOR = (225, 101, 47)
     DEAD = (39, 39, 39)
     PLAYER = (20, 167, 108)
+
+
+class PlayerCollision(Enum):
+    PLAYER_APPLE = {PlayerType.PLAYER, PlayerType.APPLE}
+    PLAYER_DEAD = {PlayerType.PLAYER, PlayerType.DEAD}
+    PLAYER_NEFOR = {PlayerType.PLAYER, PlayerType.NEFOR}
 
 
 def init_sprites():
@@ -61,6 +72,7 @@ def init_sprites():
 
     return sprites
 
+
 ### TODO move decorator something out like a log.py
 def move_log(func):
     @wraps(func)
@@ -101,8 +113,8 @@ class GameObject:
     def draw(self):
         screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
         font = pg.font.SysFont(None, 24)
-        #text_id = font.render(str(self.id), 1, (255, 255, 255))
-        #screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
+        # text_id = font.render(str(self.id), 1, (255, 255, 255))
+        # screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
         if self.is_alive():
             text_hp = font.render(str(self.hp), 1, (255, 255, 255))
             screen.blit(text_hp, (self.x * self.scaler + self.scaler // 2.5, self.y * self.scaler + self.scaler // 2))
@@ -263,42 +275,67 @@ class World:
 
         return new_world
 
-    def draw(self):
-        for player in chain.from_iterable(self.world):
-                player.draw()
-        ### TODO other draw
+    def _draw_lines(self):
+        for i in range(settings.WORLD_WIDTH):
+            pg.draw.line(
+                screen, (116, 116, 116, 100), (i * settings.IMG_SCALE, 0),
+                (i * settings.IMG_SCALE, settings.WORLD_HEIGHT * settings.IMG_SCALE), 10)
+        for j in range(settings.WORLD_WIDTH):
+            pg.draw.line(
+                screen, (116, 116, 116, 10), (0, j * settings.IMG_SCALE),
+                (settings.WORLD_WIDTH * settings.IMG_SCALE, j * settings.IMG_SCALE), 10)
 
-    def live(self):
-        ### TODO main checks and player lives
+    def draw(self):
+        self._draw_lines()
+        for player in chain.from_iterable(self.world):
+            player.draw()
+
+    def _aging_step(self):
         for player in chain.from_iterable(self.world):
             player.decrease_hp()
-
             if player.hp == 0:
                 logger.warning(f"{player.id} was killed")
                 player.dead()
 
+    def _fight(self, obj1: Player, obj2: Player):
+        if obj1.hp == obj2.hp:
+            obj1.dead()
+            obj2.dead()
+        elif obj1.hp >= obj2.hp:
+            obj1.increase_hp(obj2.hp)
+            obj2.dead()
+        else:
+            obj2.increase_hp(obj1.hp)
+            obj1.dead()
+
+    def _eat(self, obj1: Player, obj2: Food):
+        obj1.increase_hp(obj2.hp)
+        obj2.dead()
+
+    def _check_collisions(self, obj1: GameObject | Player, obj2: GameObject | Player | Food):
+        if {obj1.type, obj2.type} == PlayerCollision.PLAYER_APPLE.value:
+            self._eat(obj1, obj2)
+        elif {obj1.type, obj2.type} == PlayerCollision.PLAYER_NEFOR.value:
+            self._fight(obj1, obj2)
+
+    def _players_step(self):
+        for row in OLD_WORLD.world:
+            for player in row:
+                player.has_move = True
+        for player in chain.from_iterable(self.world):
+            if player.has_move:
+                player.live()
+
+    def live(self):
+        self._aging_step()
+        self._players_step()
 
     def swap_game_object(self, x1, y1, x2, y2):
 
         obj1: GameObject = self.world[y1][x1]
         obj2: GameObject = self.world[y2][x2]
 
-        ### TODO move out the checkouts into the checkout func or World.live()
-        if obj1.type != PlayerType.DEAD and obj2.type == PlayerType.APPLE:
-            obj1.increase_hp(obj2.hp)
-            obj2.dead()
-        ### TODO move out the checkouts into the checkout func or World.live()
-        elif obj1.type != PlayerType.DEAD and obj2.type != PlayerType.DEAD:
-            if obj1.hp == obj2.hp:
-                obj1.dead()
-                obj2.dead()
-            elif obj1.hp >= obj2.hp:
-                obj1.increase_hp(obj2.hp)
-                obj2.dead()
-            else:
-                obj2.increase_hp(obj1.hp)
-                obj1.dead()
-
+        self._check_collisions(obj1, obj2)
         self.world[y1][x1], self.world[y2][x2] = obj2, obj1
 
         obj1.x, obj2.x = x2, x1
@@ -318,10 +355,6 @@ SPRITES = init_sprites()
 OLD_WORLD: World = World(
     settings.WORLD_WIDTH, settings.WORLD_HEIGHT, dead_coef=settings.DEAD_COEF)
 
-pg.init()
-screen = pg.display.set_mode(settings.RES)
-clock = pg.time.Clock()
-
 move = 0
 while True:
     logger.info(f"MOVE {move}")
@@ -329,30 +362,13 @@ while True:
     for event in pg.event.get():
         if event.type == pg.QUIT:
             pg.quit()
+
+
+    OLD_WORLD.draw()
+    pg.display.flip()
+    OLD_WORLD.live()
+
     clock.tick(settings.FPS)
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
-    ### TODO clean main cicle
-    for i in range(settings.WORLD_WIDTH):
-        pg.draw.line(
-            screen, (116, 116, 116, 100), (i * settings.IMG_SCALE, 0),
-            (i * settings.IMG_SCALE, settings.WORLD_HEIGHT * settings.IMG_SCALE), 10)
-    for j in range(settings.WORLD_WIDTH):
-        pg.draw.line(
-            screen, (116, 116, 116, 10), (0, j * settings.IMG_SCALE),
-            (settings.WORLD_WIDTH * settings.IMG_SCALE, j * settings.IMG_SCALE), 10)
 
-    OLD_WORLD.live()
-    OLD_WORLD.draw()
-    pg.display.flip()
-    for row in OLD_WORLD.world:
-        for player in row:
-            player.has_move = True
-    players = []
-    for row in OLD_WORLD.world:
-        for player in row:
-            players.append(player)
-
-    for player in players:
-        if player.has_move:
-            player.live()
