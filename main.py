@@ -1,9 +1,11 @@
+from typing import override
+
 import settings
 import pygame as pg
 import sys
 import time
 
-from random import randint, choice
+from random import randint, choice, gauss
 from abc import abstractmethod
 from enum import Enum
 from loguru import logger
@@ -64,11 +66,17 @@ def init_sprites():
     scaled_dead_sprite.fill(
         PlayerType.DEAD.value, special_flags=pg.BLEND_MULT)
 
+    illness_note_sprite = pg.transform.scale(
+        pg.image.load("illness_note.png"),
+        (settings.IMG_SCALE // 4, settings.IMG_SCALE // 4)
+    )
+
     sprites[PlayerType.APPLE] = scaled_apple_sprite
     sprites[PlayerType.DEAD] = scaled_dead_sprite
     sprites[PlayerType.PLAYER] = scaled_player_sprite
     sprites[PlayerType.NEFOR] = scaled_nefor_sprite
     sprites[PlayerType.FRIENDLY] = scaled_nefor_sprite
+    sprites["illness"] = illness_note_sprite
 
     return sprites
 
@@ -95,8 +103,8 @@ class GameObject:
         self.type: PlayerType = t
         self.sprite = SPRITES[self.type]
         self.has_move = True
-        self.id = x + y * settings.WORLD_WIDTH
-        self.hp = -100 if t == PlayerType.DEAD else hp
+        self.id = x + y * scaler
+        self.hp = -1000 if t == PlayerType.DEAD else hp
 
     def is_dead(self):
         return self.type == PlayerType.DEAD
@@ -113,8 +121,8 @@ class GameObject:
     def draw(self):
         screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
         font = pg.font.SysFont(None, 24)
-        # text_id = font.render(str(self.id), 1, (255, 255, 255))
-        # screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
+        text_id = font.render(str(self.id), 1, (255, 255, 255))
+        screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
         if self.is_alive():
             text_hp = font.render(str(self.hp), 1, (255, 255, 255))
             screen.blit(text_hp, (self.x * self.scaler + self.scaler // 2.5, self.y * self.scaler + self.scaler // 2))
@@ -141,8 +149,22 @@ class Player(GameObject):
     def __init__(self, scaler, x: int, y: int, t: PlayerType, hp: int):
         super().__init__(scaler, x, y, t, hp)
         self.speed = 1
+        self.is_ill = False
+        self.steps_from_ill = 0
 
-    @move_log
+    @override
+    def draw(self):
+        screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
+        font = pg.font.SysFont(None, 24)
+        text_id = font.render(str(self.id), 1, (255, 255, 255))
+        screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
+        if self.is_alive():
+            text_hp = font.render(str(self.hp), 1, (255, 255, 255))
+            screen.blit(text_hp, (self.x * self.scaler + self.scaler // 2.5, self.y * self.scaler + self.scaler // 2))
+            if self.is_ill:
+                screen.blit(SPRITES["illness"], (self.x * self.scaler + self.scaler // 2, self.y * self.scaler))
+
+    #@move_log
     def live(self):
         match self.type:
             case PlayerType.AGRESSIVE:
@@ -221,7 +243,9 @@ class World:
             self.fill_strategy,
             self.dead_coef
         )
+        self.GLOBAL_PLAYER_COUNT = 0
 
+    ### TODO rrewrite rules - control random food spawn
     def generate_world(
             self,
             width: int,
@@ -296,8 +320,22 @@ class World:
             if player.hp == 0:
                 logger.warning(f"{player.id} was killed")
                 player.dead()
+                continue
+            if player.is_ill:
+                player.steps_from_ill += 1
+            if player.steps_from_ill == 10:
+                player.is_ill = False
+
 
     def _fight(self, obj1: Player, obj2: Player):
+        if obj1.is_ill:
+            obj2.increase_hp(obj1.hp)
+            obj1.dead()
+            return
+        if obj2.is_ill:
+            obj1.increase_hp(obj2.hp)
+            obj2.dead()
+            return
         if obj1.hp == obj2.hp:
             obj1.dead()
             obj2.dead()
@@ -318,6 +356,16 @@ class World:
         elif {obj1.type, obj2.type} == PlayerCollision.PLAYER_NEFOR.value:
             self._fight(obj1, obj2)
 
+    def _random_event_step(self):
+        need_ill = gauss(mu=0.5, sigma=0.1) * gauss(mu=0.5, sigma=0.1) > 0.3
+        if need_ill:
+            for row in OLD_WORLD.world:
+                for player in row:
+                    if player.is_alive() and randint(1, 10) > 5:
+                        logger.info(f"{player.id} was illed")
+                        player.is_ill = True
+                        return
+
     def _players_step(self):
         for row in OLD_WORLD.world:
             for player in row:
@@ -329,6 +377,7 @@ class World:
     def live(self):
         self._aging_step()
         self._players_step()
+        self._random_event_step()
 
     def swap_game_object(self, x1, y1, x2, y2):
 
@@ -363,7 +412,6 @@ while True:
         if event.type == pg.QUIT:
             pg.quit()
 
-
     OLD_WORLD.draw()
     pg.display.flip()
     OLD_WORLD.live()
@@ -371,4 +419,3 @@ while True:
     clock.tick(settings.FPS)
     pg.display.set_caption(f'FPS: {clock.get_fps()}')
     screen.fill((0, 0, 0))
-
