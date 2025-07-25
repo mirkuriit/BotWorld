@@ -5,7 +5,7 @@ from sprites import SPRITES
 from enums import PlayerType, PlayerCollision
 from utils import move_log
 from utils import need_ill
-from utils import get_player_startup_hp
+from utils import get_player_startup_hp, get_apple_startup_hp
 
 import pygame as pg
 import sys
@@ -174,7 +174,7 @@ class World:
     def _get_players_coord(self, num_players, x_limit, y_limit) -> set[(int, int)]:
         coords = set()
         while len(coords) < num_players:
-            coords.add((randint(0, x_limit-1), randint(0, y_limit-1)))
+            coords.add((randint(0, x_limit - 1), randint(0, y_limit - 1)))
         return coords
 
     def generate_world(
@@ -187,9 +187,10 @@ class World:
         live_players_count = int(num_players * live_coef)
 
         assert live_players_count < (num_players // 2)
-        live_players_coords = self._get_players_coord(num_players=live_players_count,
-                                                     x_limit=width,
-                                                     y_limit=height)
+        live_players_coords = self._get_players_coord(
+            num_players=live_players_count,
+            x_limit=width,
+            y_limit=height)
         # ### TODO rewrite rules - control random food spawn
         # ### TODO some algo for GameObjects allocation on game field
         # player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 10 + [
@@ -275,39 +276,43 @@ class World:
             if player.steps_from_ill == 10:
                 player.is_ill = False
 
-    def _fight(self, obj1: Player, obj2: Player):
+    def _fight(self, obj1: Player, obj2: Player) -> bool:
         if obj1.is_ill and obj2.is_ill:
             obj1.dead()
             obj2.dead()
-            return
+            return False
         if obj1.is_ill:
             obj2.increase_hp(obj1.hp)
             obj1.dead()
-            return
+            return False
         if obj2.is_ill:
             obj1.increase_hp(obj2.hp)
             obj2.dead()
-            return
+            return True
         if obj1.hp == obj2.hp:
             obj1.dead()
             obj2.dead()
+            return False
         elif obj1.hp >= obj2.hp:
             obj1.increase_hp(obj2.hp)
             obj2.dead()
+            return True
         else:
             obj2.increase_hp(obj1.hp)
             obj1.dead()
+            return False
 
     def _eat(self, obj1: Player, obj2: Food):
         obj1.increase_hp(obj2.hp)
         obj2.dead()
 
     def _check_collisions(self, obj1: GameObject | Player, obj2: GameObject | Player | Food):
-        ### TODO move self_eat and self_fight
         if {obj1.type, obj2.type} == PlayerCollision.PLAYER_APPLE.value:
-            self._eat(obj1, obj2)
+            return PlayerCollision.PLAYER_APPLE
         elif {obj1.type, obj2.type} == PlayerCollision.PLAYER_NEFOR.value:
-            self._fight(obj1, obj2)
+            return PlayerCollision.PLAYER_NEFOR
+        else:  # (obj1.type, obj2.type) == PlayerCollision.PLAYER_DEAD
+            return PlayerCollision.PLAYER_DEAD
 
     def _random_event_step(self):
         ill_flag = need_ill()
@@ -319,6 +324,17 @@ class World:
                         players.append(player)
             sorry = choice(players)
             sorry.is_ill = True
+
+        random_x, random_y = randint(0, self.height - 1), randint(0, self.width - 1)
+
+        if self.world[random_y][random_x].type == PlayerType.DEAD:
+            food = Player(
+                scaler=settings.IMG_SCALE,
+                x=random_x,
+                y=random_y,
+                t=PlayerType.APPLE,
+                hp=get_apple_startup_hp())
+            self.world[random_y][random_x] = food
 
     def _players_step(self):
         for row in OLD_WORLD.world:
@@ -335,10 +351,19 @@ class World:
 
     def swap_game_object(self, x1, y1, x2, y2):
 
-        obj1: GameObject = self.world[y1][x1]
-        obj2: GameObject = self.world[y2][x2]
+        obj1: Player | Food = self.world[y1][x1]
+        obj2: Player | Food = self.world[y2][x2]
 
-        self._check_collisions(obj1, obj2)
+        collision_type: PlayerCollision = self._check_collisions(obj1, obj2)
+        if collision_type == PlayerCollision.PLAYER_DEAD:
+            pass
+        elif collision_type == PlayerCollision.PLAYER_NEFOR:
+            need_swap = self._fight(obj1, obj2)
+            if not need_swap:
+                return
+        elif collision_type == PlayerCollision.PLAYER_APPLE:
+            self._eat(obj1, obj2)
+
         self.world[y1][x1], self.world[y2][x2] = obj2, obj1
 
         obj1.x, obj2.x = x2, x1
