@@ -1,13 +1,18 @@
 from typing import override
 
 import settings
+from sprites import SPRITES
+from enums import PlayerType, PlayerCollision
+from utils import move_log
+from utils import need_ill
+from utils import get_player_startup_hp
+
 import pygame as pg
 import sys
 import time
 
-from random import randint, choice, gauss
+from random import randint, choice, gauss, sample
 from abc import abstractmethod
-from enum import Enum
 from loguru import logger
 from functools import wraps
 from itertools import chain
@@ -16,83 +21,6 @@ from itertools import chain
 pg.init()
 screen = pg.display.set_mode(settings.RES)
 clock = pg.time.Clock()
-
-
-class PlayerType(Enum):
-    AGRESSIVE = None
-    APPLE = (219, 214, 93)
-    FRIENDLY = None
-    NEFOR = (225, 101, 47)
-    DEAD = (39, 39, 39)
-    PLAYER = (20, 167, 108)
-
-
-class PlayerCollision(Enum):
-    PLAYER_APPLE = {PlayerType.PLAYER, PlayerType.APPLE}
-    PLAYER_DEAD = {PlayerType.PLAYER, PlayerType.DEAD}
-    PLAYER_NEFOR = {PlayerType.PLAYER, PlayerType.NEFOR}
-
-
-def init_sprites():
-    sprites = {}
-
-    scaled_player_sprite = pg.transform.scale(
-        pg.image.load("player.png"),
-        (settings.IMG_SCALE, settings.IMG_SCALE)
-    )
-    scaled_player_sprite.fill(
-        PlayerType.PLAYER.value, special_flags=pg.BLEND_MULT
-    )
-
-    scaled_nefor_sprite = pg.transform.scale(
-        pg.image.load("player.png"),
-        (settings.IMG_SCALE, settings.IMG_SCALE)
-    )
-    scaled_nefor_sprite.fill(
-        PlayerType.NEFOR.value, special_flags=pg.BLEND_MULT
-    )
-
-    scaled_apple_sprite = pg.transform.scale(
-        pg.image.load("food.png"),
-        (settings.IMG_SCALE, settings.IMG_SCALE)
-    )
-    scaled_apple_sprite.fill(
-        PlayerType.APPLE.value, special_flags=pg.BLEND_MULT)
-
-    scaled_dead_sprite = pg.transform.scale(
-        pg.image.load("field.png"),
-        (settings.IMG_SCALE, settings.IMG_SCALE)
-    )
-    scaled_dead_sprite.fill(
-        PlayerType.DEAD.value, special_flags=pg.BLEND_MULT)
-
-    illness_note_sprite = pg.transform.scale(
-        pg.image.load("illness_note.png"),
-        (settings.IMG_SCALE // 4, settings.IMG_SCALE // 4)
-    )
-
-    sprites[PlayerType.APPLE] = scaled_apple_sprite
-    sprites[PlayerType.DEAD] = scaled_dead_sprite
-    sprites[PlayerType.PLAYER] = scaled_player_sprite
-    sprites[PlayerType.NEFOR] = scaled_nefor_sprite
-    sprites[PlayerType.FRIENDLY] = scaled_nefor_sprite
-    sprites["illness"] = illness_note_sprite
-
-    return sprites
-
-
-### TODO move decorator something out like a log.py
-def move_log(func):
-    @wraps(func)
-    def inner(o: GameObject):
-        if o.is_alive():
-            s = f"{o.id}`s {o.type} move"
-            if o.type == PlayerType.PLAYER:
-                s += f" current refs: {sys.getrefcount(o)}"
-            logger.info(s)
-        func(o)
-
-    return inner
 
 
 class GameObject:
@@ -121,10 +49,10 @@ class GameObject:
     def draw(self):
         screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
         font = pg.font.SysFont(None, 24)
-        text_id = font.render(str(self.id), 1, (255, 255, 255))
+        text_id = font.render(str(self.id), 1, settings.ID_COLOR)
         screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
         if self.is_alive():
-            text_hp = font.render(str(self.hp), 1, (255, 255, 255))
+            text_hp = font.render(str(self.hp), 1, settings.HP_COLOR)
             screen.blit(text_hp, (self.x * self.scaler + self.scaler // 2.5, self.y * self.scaler + self.scaler // 2))
 
     def dead(self):
@@ -140,7 +68,6 @@ class Food(GameObject):
     def __init__(self, scaler, x: int, y: int, t: PlayerType):
         super().__init__(scaler, x, y, t)
 
-    @move_log
     def live(self):
         pass
 
@@ -156,15 +83,16 @@ class Player(GameObject):
     def draw(self):
         screen.blit(self.sprite, (self.x * self.scaler, self.y * self.scaler))
         font = pg.font.SysFont(None, 24)
-        text_id = font.render(str(self.id), 1, (255, 255, 255))
+        ### text_id is debug info
+        text_id = font.render(str(self.id), 1, settings.ID_COLOR)
         screen.blit(text_id, (self.x * self.scaler, self.y * self.scaler))
         if self.is_alive():
-            text_hp = font.render(str(self.hp), 1, (255, 255, 255))
+            text_hp = font.render(str(self.hp), 1, settings.HP_COLOR)
             screen.blit(text_hp, (self.x * self.scaler + self.scaler // 2.5, self.y * self.scaler + self.scaler // 2))
             if self.is_ill:
                 screen.blit(SPRITES["illness"], (self.x * self.scaler + self.scaler // 2, self.y * self.scaler))
 
-    #@move_log
+    @move_log(is_log=True)
     def live(self):
         match self.type:
             case PlayerType.AGRESSIVE:
@@ -232,47 +160,68 @@ class Player(GameObject):
 
 
 class World:
-    def __init__(self, width, height, dead_coef, fill_strategy="random"):
+    def __init__(self, width, height, live_coef):
         self.width = width
         self.height = height
-        self.fill_strategy = fill_strategy
-        self.dead_coef = dead_coef
+        self.live_cof = live_coef
         self.world: list[list[Player]] = self.generate_world(
             self.width,
             self.height,
-            self.fill_strategy,
-            self.dead_coef
+            self.live_cof
         )
         self.GLOBAL_PLAYER_COUNT = 0
 
-    ### TODO rrewrite rules - control random food spawn
+    def _get_players_coord(self, num_players, x_limit, y_limit) -> set[(int, int)]:
+        coords = set()
+        while len(coords) < num_players:
+            coords.add((randint(0, x_limit-1), randint(0, y_limit-1)))
+        return coords
+
     def generate_world(
             self,
             width: int,
             height: int,
-            fill_strategy: str,
-            dead_coef: int
+            live_coef: float
     ) -> list[list[Player]]:
         num_players = width * height
-        ### TODO some algo for GameObjects allocation on game field
-        player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 10 + [
-            PlayerType.APPLE] * 4 + [PlayerType.PLAYER]
-        if len(player_types) > num_players:
-            player_types = player_types[::-1][:num_players]
-        elif len(player_types) < num_players:
-            player_types += [PlayerType.DEAD] * (
-                    num_players - len(player_types))
+        live_players_count = int(num_players * live_coef)
+
+        assert live_players_count < (num_players // 2)
+        live_players_coords = self._get_players_coord(num_players=live_players_count,
+                                                     x_limit=width,
+                                                     y_limit=height)
+        # ### TODO rewrite rules - control random food spawn
+        # ### TODO some algo for GameObjects allocation on game field
+        # player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 10 + [
+        #     PlayerType.APPLE] * 4 + [PlayerType.PLAYER]
+        # if len(player_types) > num_players:
+        #     player_types = player_types[::-1][:num_players]
+        # elif len(player_types) < num_players:
+        #     player_types += [PlayerType.DEAD] * (
+        #             num_players - len(player_types))
+
         world = [
             [
                 Player(
                     scaler=settings.IMG_SCALE,
                     x=i,
                     y=j,
-                    t=player_types.pop(randint(0, len(player_types) - 1)),
-                    hp=randint(1, 100)
+                    t=PlayerType.DEAD,
+                    hp=-1000
                 ) for i in range(width)
             ]
             for j in range(height)]
+
+        for y, x in live_players_coords:
+            player: Player = world[x][y]
+            player.type = PlayerType.NEFOR
+            player.sprite = SPRITES[PlayerType.NEFOR]
+            player.hp = get_player_startup_hp()
+        player_y, player_x = choice(list(live_players_coords))
+        world[player_x][player_y].type = PlayerType.PLAYER
+        world[player_x][player_y].sprite = SPRITES[PlayerType.PLAYER]
+        print(live_players_coords)
+        print(world)
         return world
 
     @classmethod
@@ -302,11 +251,11 @@ class World:
     def _draw_lines(self):
         for i in range(settings.WORLD_WIDTH):
             pg.draw.line(
-                screen, (116, 116, 116, 100), (i * settings.IMG_SCALE, 0),
+                screen, settings.LINE_COLOR, (i * settings.IMG_SCALE, 0),
                 (i * settings.IMG_SCALE, settings.WORLD_HEIGHT * settings.IMG_SCALE), 10)
         for j in range(settings.WORLD_WIDTH):
             pg.draw.line(
-                screen, (116, 116, 116, 10), (0, j * settings.IMG_SCALE),
+                screen, settings.LINE_COLOR, (0, j * settings.IMG_SCALE),
                 (settings.WORLD_WIDTH * settings.IMG_SCALE, j * settings.IMG_SCALE), 10)
 
     def draw(self):
@@ -326,8 +275,11 @@ class World:
             if player.steps_from_ill == 10:
                 player.is_ill = False
 
-
     def _fight(self, obj1: Player, obj2: Player):
+        if obj1.is_ill and obj2.is_ill:
+            obj1.dead()
+            obj2.dead()
+            return
         if obj1.is_ill:
             obj2.increase_hp(obj1.hp)
             obj1.dead()
@@ -351,20 +303,22 @@ class World:
         obj2.dead()
 
     def _check_collisions(self, obj1: GameObject | Player, obj2: GameObject | Player | Food):
+        ### TODO move self_eat and self_fight
         if {obj1.type, obj2.type} == PlayerCollision.PLAYER_APPLE.value:
             self._eat(obj1, obj2)
         elif {obj1.type, obj2.type} == PlayerCollision.PLAYER_NEFOR.value:
             self._fight(obj1, obj2)
 
     def _random_event_step(self):
-        need_ill = gauss(mu=0.5, sigma=0.1) * gauss(mu=0.5, sigma=0.1) > 0.3
-        if need_ill:
+        ill_flag = need_ill()
+        if ill_flag:
+            players = []
             for row in OLD_WORLD.world:
                 for player in row:
-                    if player.is_alive() and randint(1, 10) > 5:
-                        logger.info(f"{player.id} was illed")
-                        player.is_ill = True
-                        return
+                    if player.is_alive():
+                        players.append(player)
+            sorry = choice(players)
+            sorry.is_ill = True
 
     def _players_step(self):
         for row in OLD_WORLD.world:
@@ -400,9 +354,8 @@ class World:
         return s
 
 
-SPRITES = init_sprites()
 OLD_WORLD: World = World(
-    settings.WORLD_WIDTH, settings.WORLD_HEIGHT, dead_coef=settings.DEAD_COEF)
+    settings.WORLD_WIDTH, settings.WORLD_HEIGHT, settings.LIVE_COEF)
 
 move = 0
 while True:
