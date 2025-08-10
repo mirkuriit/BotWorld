@@ -2,7 +2,7 @@ import pygame as pg
 import settings
 from pygame import Rect
 from random import randint
-from enum import Enum
+from enums import Enum
 
 
 class PlayerType(Enum):
@@ -170,7 +170,6 @@ def step(OLD_WORLD, NEW_WORLD):
             player = NEW_WORLD.world[i][j]
             neighbours = get_neighbours(player, OLD_WORLD)
 
-            ### TODO in other function
             num_alive = sum(i.is_alive() for i in neighbours)
             if num_alive < 2 or num_alive > 3 and player.is_alive():
                 player.dead()

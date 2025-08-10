@@ -32,3 +32,6 @@ def need_ill() -> bool:
 
 def get_player_startup_hp():
     return int(gauss(mu=100, sigma=25))
+
+def get_apple_startup_hp():
+    return int(gauss(mu=100, sigma=25))

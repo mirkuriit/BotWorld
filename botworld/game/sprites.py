@@ -7,7 +7,7 @@ def init_sprites():
     sprites = {}
 
     scaled_player_sprite = pg.transform.scale(
-        pg.image.load("img/player.png"),
+        pg.image.load("../img/player.png"),
         (settings.IMG_SCALE, settings.IMG_SCALE)
     )
     scaled_player_sprite.fill(
@@ -15,7 +15,7 @@ def init_sprites():
     )
 
     scaled_nefor_sprite = pg.transform.scale(
-        pg.image.load("img/player.png"),
+        pg.image.load("../img/player.png"),
         (settings.IMG_SCALE, settings.IMG_SCALE)
     )
     scaled_nefor_sprite.fill(
@@ -23,21 +23,21 @@ def init_sprites():
     )
 
     scaled_apple_sprite = pg.transform.scale(
-        pg.image.load("img/food.png"),
+        pg.image.load("../img/food.png"),
         (settings.IMG_SCALE, settings.IMG_SCALE)
     )
     scaled_apple_sprite.fill(
         PlayerType.APPLE.value, special_flags=pg.BLEND_MULT)
 
     scaled_dead_sprite = pg.transform.scale(
-        pg.image.load("img/field.png"),
+        pg.image.load("../img/field.png"),
         (settings.IMG_SCALE, settings.IMG_SCALE)
     )
     scaled_dead_sprite.fill(
         PlayerType.DEAD.value, special_flags=pg.BLEND_MULT)
 
     illness_note_sprite = pg.transform.scale(
-        pg.image.load("img/illness_note.png"),
+        pg.image.load("../img/illness_note.png"),
         (settings.IMG_SCALE // 4, settings.IMG_SCALE // 4)
     )
 
