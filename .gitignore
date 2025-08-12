@@ -1,3 +1,5 @@
 .idea
 .venv
+botworld/.env
+
 __pycache__
