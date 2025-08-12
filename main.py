@@ -8,14 +8,12 @@ from utils import need_ill
 from utils import get_player_startup_hp, get_apple_startup_hp
 
 import pygame as pg
-import sys
-import time
 
-from random import randint, choice, gauss, sample
+from random import randint, choice
 from abc import abstractmethod
 from loguru import logger
-from functools import wraps
 from itertools import chain
+import uuid
 
 
 pg.init()
@@ -33,6 +31,7 @@ class GameObject:
         self.has_move = True
         self.id = x + y * scaler
         self.hp = -1000 if t == PlayerType.DEAD else hp
+        self.uuid = uuid.uuid4()
 
     def is_dead(self):
         return self.type == PlayerType.DEAD
@@ -105,7 +104,7 @@ class Player(GameObject):
                 self._player_move()
         self.has_move = False
 
-    def _nefor_move(self):
+    def _player_move(self):
         pass
 
     def _argessive_move(self):
@@ -117,8 +116,18 @@ class Player(GameObject):
     def _friendly_move(self):
         pass
 
-    def _player_move(self):
-        while True:  ### TODO Ну это мем ебаный вообще
+    def _nefor_move(self):
+        ### TODO Ну это мем ебаный вообще
+        while True:
+            pg.draw.circle(
+                surface=screen,
+                color=(10, 100, 201),
+                center=(self.x * self.scaler + self.scaler // 2,
+                        self.y * self.scaler + self.scaler // 2
+                        ),
+                radius=self.scaler // 4
+            )
+            pg.display.flip()
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     pg.quit()
@@ -148,7 +157,6 @@ class Player(GameObject):
                             logger.warning(f"{self.type} {self.id} сделаал недопустимсый ход")
                         else:
                             OLD_WORLD.swap_game_object(self.x, self.y, self.x, self.y + 1)
-
                         return True
             pg.time.delay(100)
 
@@ -191,15 +199,6 @@ class World:
             num_players=live_players_count,
             x_limit=width,
             y_limit=height)
-        # ### TODO rewrite rules - control random food spawn
-        # ### TODO some algo for GameObjects allocation on game field
-        # player_types = [PlayerType.DEAD] * int(dead_coef * num_players) + [PlayerType.NEFOR] * 10 + [
-        #     PlayerType.APPLE] * 4 + [PlayerType.PLAYER]
-        # if len(player_types) > num_players:
-        #     player_types = player_types[::-1][:num_players]
-        # elif len(player_types) < num_players:
-        #     player_types += [PlayerType.DEAD] * (
-        #             num_players - len(player_types))
 
         world = [
             [
@@ -218,11 +217,6 @@ class World:
             player.type = PlayerType.NEFOR
             player.sprite = SPRITES[PlayerType.NEFOR]
             player.hp = get_player_startup_hp()
-        player_y, player_x = choice(list(live_players_coords))
-        world[player_x][player_y].type = PlayerType.PLAYER
-        world[player_x][player_y].sprite = SPRITES[PlayerType.PLAYER]
-        print(live_players_coords)
-        print(world)
         return world
 
     @classmethod
@@ -307,12 +301,12 @@ class World:
         obj2.dead()
 
     def _check_collisions(self, obj1: GameObject | Player, obj2: GameObject | Player | Food):
-        if {obj1.type, obj2.type} == PlayerCollision.PLAYER_APPLE.value:
-            return PlayerCollision.PLAYER_APPLE
-        elif {obj1.type, obj2.type} == PlayerCollision.PLAYER_NEFOR.value:
-            return PlayerCollision.PLAYER_NEFOR
-        else:  # (obj1.type, obj2.type) == PlayerCollision.PLAYER_DEAD
-            return PlayerCollision.PLAYER_DEAD
+        if {obj1.type, obj2.type} == PlayerCollision.NEFOR_APPLE.value:
+            return PlayerCollision.NEFOR_APPLE
+        elif {obj1.type, obj2.type} == PlayerCollision.NEFOR_NEFOR.value:
+            return PlayerCollision.NEFOR_NEFOR
+        else:  # (obj1.type, obj2.type) == PlayerCollision.NEFOR_DEAD
+            return PlayerCollision.NEFOR_DEAD
 
     def _random_event_step(self):
         ill_flag = need_ill()
@@ -355,13 +349,13 @@ class World:
         obj2: Player | Food = self.world[y2][x2]
 
         collision_type: PlayerCollision = self._check_collisions(obj1, obj2)
-        if collision_type == PlayerCollision.PLAYER_DEAD:
+        if collision_type == PlayerCollision.NEFOR_DEAD:
             pass
-        elif collision_type == PlayerCollision.PLAYER_NEFOR:
+        elif collision_type == PlayerCollision.NEFOR_NEFOR:
             need_swap = self._fight(obj1, obj2)
             if not need_swap:
                 return
-        elif collision_type == PlayerCollision.PLAYER_APPLE:
+        elif collision_type == PlayerCollision.NEFOR_APPLE:
             self._eat(obj1, obj2)
 
         self.world[y1][x1], self.world[y2][x2] = obj2, obj1
@@ -371,6 +365,9 @@ class World:
         tmp_id = obj1.id
         obj1.id = obj2.id
         obj2.id = tmp_id
+
+        OLD_WORLD.draw()
+        pg.display.flip()
 
     def __repr__(self):
         s = ""

@@ -11,6 +11,6 @@ class PlayerType(Enum):
 
 
 class PlayerCollision(Enum):
-    PLAYER_APPLE = {PlayerType.PLAYER, PlayerType.APPLE}
-    PLAYER_DEAD = {PlayerType.PLAYER, PlayerType.DEAD}
-    PLAYER_NEFOR = {PlayerType.PLAYER, PlayerType.NEFOR}
+    NEFOR_APPLE = {PlayerType.NEFOR, PlayerType.APPLE}
+    NEFOR_DEAD = {PlayerType.NEFOR, PlayerType.DEAD}
+    NEFOR_NEFOR = {PlayerType.NEFOR, PlayerType.NEFOR}
