@@ -21,6 +21,7 @@ screen = pg.display.set_mode(settings.RES)
 clock = pg.time.Clock()
 
 
+
 class GameObject:
     def __init__(self, scaler, x: int, y: int, t: PlayerType, hp: int):
         self.scaler = scaler
@@ -160,6 +161,7 @@ class Player(GameObject):
                         return True
             pg.time.delay(100)
 
+
     def __repr__(self):
         return f"x:{self.x} y:{self.y} {self.type.name}"
 
@@ -169,6 +171,7 @@ class Player(GameObject):
 
 class World:
     def __init__(self, width, height, live_coef):
+        self.GLOBAL_PLAYER_DECK = []
         self.width = width
         self.height = height
         self.live_cof = live_coef
@@ -178,6 +181,7 @@ class World:
             self.live_cof
         )
         self.GLOBAL_PLAYER_COUNT = 0
+
 
     def _get_players_coord(self, num_players, x_limit, y_limit) -> set[(int, int)]:
         coords = set()
@@ -217,31 +221,32 @@ class World:
             player.type = PlayerType.NEFOR
             player.sprite = SPRITES[PlayerType.NEFOR]
             player.hp = get_player_startup_hp()
+            self.GLOBAL_PLAYER_DECK.append(player)
         return world
 
-    @classmethod
-    def from_world(cls, source_world):
-        new_world = cls.__new__(cls)
-
-        new_world.width = source_world.width
-        new_world.height = source_world.height
-        new_world.dead_coef = source_world.dead_coef
-        new_world.fill_strategy = source_world.fill_strategy
-
-        new_world.world = [
-            [
-                Player(
-                    scaler=player.scaler,
-                    x=player.x,
-                    y=player.y,
-                    t=player.type
-                )
-                for player in row
-            ]
-            for row in source_world.world
-        ]
-
-        return new_world
+    # @classmethod
+    # def from_world(cls, source_world):
+    #     new_world = cls.__new__(cls)
+    #
+    #     new_world.width = source_world.width
+    #     new_world.height = source_world.height
+    #     new_world.dead_coef = source_world.dead_coef
+    #     new_world.fill_strategy = source_world.fill_strategy
+    #
+    #     new_world.world = [
+    #         [
+    #             Player(
+    #                 scaler=player.scaler,
+    #                 x=player.x,
+    #                 y=player.y,
+    #                 t=player.type
+    #             )
+    #             for player in row
+    #         ]
+    #         for row in source_world.world
+    #     ]
+    #
+    #     return new_world
 
     def _draw_lines(self):
         for i in range(settings.WORLD_WIDTH):
@@ -331,12 +336,18 @@ class World:
             self.world[random_y][random_x] = food
 
     def _players_step(self):
+        GLOBAL_PLAYER_DECK_COPY = []
+
         for row in OLD_WORLD.world:
             for player in row:
                 player.has_move = True
-        for player in chain.from_iterable(self.world):
+
+        for player in self.GLOBAL_PLAYER_DECK:
             if player.has_move:
                 player.live()
+                GLOBAL_PLAYER_DECK_COPY.append(player)
+        self.GLOBAL_PLAYER_DECK = GLOBAL_PLAYER_DECK_COPY.copy()
+
 
     def live(self):
         self._aging_step()
