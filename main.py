@@ -93,6 +93,9 @@ class Player(GameObject):
 
     @move_log(is_log=True)
     def live(self):
+        if not self.is_alive():
+            self.draw()
+            return
         match self.type:
             case PlayerType.AGRESSIVE:
                 self._argessive_move()

@@ -1,6 +1,7 @@
 from functools import wraps
 from loguru import logger
 from random import gauss
+import enums
 
 
 # def move_log(func):
@@ -19,7 +20,7 @@ def move_log(is_log: bool):
     def log_decorator(func):
         @wraps(func)
         def inner(o):
-            if o.is_alive():
+            if o.is_alive() and o.type != enums.PlayerType.APPLE:
                 s = f"{o.id}`s {o.type} move" if is_log else "meow"
                 logger.info(s)
             func(o)
