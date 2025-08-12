@@ -3,7 +3,7 @@ services:
     image: postgres:17
     container_name: game-db
     env_file:
-      - example.env
+      - .env
     environment:
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}

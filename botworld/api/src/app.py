@@ -7,6 +7,7 @@ from botworld.api.src.extensions import migrate
 from config import config
 
 from models.bot_model import Bot
+from models.move_model import Move
 
 
 def create_app():
@@ -14,13 +15,13 @@ def create_app():
     app.config.from_object("config.DevConfig")
 
     db.init_app(app)
-    # migrate.init_app(app, db)
+    migrate.init_app(app, db)
 
     return app
 
 
 if __name__ == "__main__":
     app = create_app()
-    with app.app_context():
-        db.create_all()
+    # with app.app_context():
+    #     db.create_all()
     app.run(debug=True)
