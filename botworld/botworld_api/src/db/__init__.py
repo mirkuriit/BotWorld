@@ -1,0 +1,1 @@
+from botworld.botworld_api.src.db.tables import Bot, Move
