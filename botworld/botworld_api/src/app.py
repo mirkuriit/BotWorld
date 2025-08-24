@@ -1,22 +1,24 @@
-import os
-from typing import Literal
 from flask import Flask
 
-from botworld.api.src.extensions import db
-from botworld.api.src.extensions import migrate
-from config import config
-
-from models.bot_model import Bot
-from models.move_model import Move
+from botworld.botworld_api.src.db.extensions import db
+from botworld.botworld_api.src.db.extensions import migrate
+from botworld.botworld_api.src.api.bot_api import bot_router
+from botworld.botworld_api.src.api.move_api import move_router
+from botworld.botworld_api.src.errors.errors import MoveNotFoundError, BotNotFoundError
+from botworld.botworld_api.src.errors.errors import bot_not_found, move_not_found
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.DevConfig")
-    print(app.config)
 
-    db.init_app(app)
-    #migrate.init_app(app, db)
+    db.init_app(app=app)
+    migrate.init_app(app, db)
+
+    app.register_blueprint(bot_router)
+    app.register_blueprint(move_router)
+    app.register_error_handler(BotNotFoundError, bot_not_found)
+    app.register_error_handler(MoveNotFoundError, move_not_found)
 
     return app
 
