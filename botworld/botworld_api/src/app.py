@@ -13,9 +13,10 @@ from models.move_model import Move
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.DevConfig")
+    print(app.config)
 
     db.init_app(app)
-    migrate.init_app(app, db)
+    #migrate.init_app(app, db)
 
     return app
 
@@ -24,4 +25,5 @@ if __name__ == "__main__":
     app = create_app()
     # with app.app_context():
     #     db.create_all()
+
     app.run(debug=True)

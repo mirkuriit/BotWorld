@@ -1,9 +1,8 @@
 from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from datetime import datetime
 from sqlalchemy.sql import func
-from botworld.api.src.extensions import db
+from botworld.botworld_api.src.extensions import db
 
 class Bot(db.Model):
     __tablename__ = "bots"
