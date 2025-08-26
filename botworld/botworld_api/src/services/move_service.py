@@ -24,6 +24,10 @@ class MoveService:
         moves = db.session.scalars(sa.select(Move))
         return list(moves)
 
+    def get_by_bot_id(self, id: UUID) -> list[Move]:
+        moves = db.session.scalars(sa.select(Move).filter_by(bot_id=id))
+        return list(moves)
+
     def delete_by_id(self, id: UUID) -> Move | None:
         move = db.session.scalar(sa.select(Move).filter_by(id=id))
         if not move:
