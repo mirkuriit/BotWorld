@@ -12,7 +12,7 @@ class Bot(db.Model):
 
     llm_full_name = db.Column(db.String(200), nullable=False, unique=True)
 
-    llm_api_link = db.Column(db.String(1000), nullable=False, unique=True)
+    llm_api_link = db.Column(db.String(1000), nullable=False)
     llm_source_link = db.Column(db.String(1000), nullable=False)
     # optional
     llm_api_token = db.Column(db.String(1000))
