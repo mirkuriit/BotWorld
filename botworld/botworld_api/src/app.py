@@ -1,4 +1,5 @@
 from flask import Flask
+from flasgger import Swagger
 
 from botworld.botworld_api.src.db.extensions import db
 from botworld.botworld_api.src.db.extensions import migrate
@@ -10,6 +11,7 @@ from botworld.botworld_api.src.errors.errors import bot_not_found, move_not_foun
 
 def create_app():
     app = Flask(__name__)
+    swagger = Swagger(app)
     app.config.from_object("config.DevConfig")
 
     db.init_app(app=app)
