@@ -12,7 +12,7 @@ from botworld.botworld_api.src.errors.errors import bot_not_found, move_not_foun
 def create_app():
     app = Flask(__name__)
     swagger = Swagger(app)
-    app.config.from_object("config.DevConfig")
+    app.config.from_object("botworld.botworld_api.src.config.DevConfig")
 
     db.init_app(app=app)
     migrate.init_app(app, db)
