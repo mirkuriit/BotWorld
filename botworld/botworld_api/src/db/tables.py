@@ -2,7 +2,7 @@ from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from sqlalchemy.sql import func
-from botworld.botworld_api.src.db.extensions import db
+from db.extensions import db
 
 class Bot(db.Model):
     __tablename__ = "bots"

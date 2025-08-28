@@ -1,7 +1,7 @@
-from botworld.botworld_api.src.db.tables import Move
-from botworld.botworld_api.src.schemas.move_schema import MoveCreate
+from db.tables import Move
+from schemas.move_schema import MoveCreate
 
-from botworld.botworld_api.src.db.extensions import db
+from db.extensions import db
 from uuid import UUID
 
 import sqlalchemy as sa

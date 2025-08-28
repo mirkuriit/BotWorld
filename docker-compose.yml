@@ -3,11 +3,7 @@ services:
     image: postgres:17
     container_name: game-db
     env_file:
-      - .env
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
-      - POSTGRES_DB=${POSTGRES_DB?Variable not set}
+      - botworld/botworld_api/.env
     ports:
       - "5432:5432"
     volumes:
@@ -15,11 +11,11 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./botworld/botworld_api
       dockerfile: Dockerfile
     container_name: game-backend
     env_file:
-      - .env
+      - botworld/botworld_api/.env
     depends_on:
       - db
     ports:

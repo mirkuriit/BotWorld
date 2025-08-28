@@ -3,10 +3,10 @@ from flask import request, jsonify
 
 from uuid import UUID
 
-from botworld.botworld_api.src.services.bot_service import BotService
-from botworld.botworld_api.src.db.tables import Bot
-from botworld.botworld_api.src.schemas.bot_schema import BotCreate, BotGet, BotUpdate
-from botworld.botworld_api.src.errors.errors import BotNotFoundError
+from services.bot_service import BotService
+from db.tables import Bot
+from schemas.bot_schema import BotCreate, BotGet, BotUpdate
+from errors.errors import BotNotFoundError
 
 
 

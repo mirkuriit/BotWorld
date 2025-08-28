@@ -3,7 +3,7 @@ from pydantic import HttpUrl, constr
 from uuid import UUID
 from datetime import datetime
 
-from botworld.botworld_api.src.schemas.move_schema import MoveGet
+from schemas.move_schema import MoveGet
 
 from typing import Optional
 

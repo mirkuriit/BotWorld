@@ -15,8 +15,8 @@ COPY pyproject.toml poetry.lock README.md /app
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi --no-root
 
-COPY ./botworld /app/botworld
-COPY .env /app/
+COPY ./src /app/src
+COPY ./.env /app/
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "botworld.botworld_api.src.app:create_app()"]
+CMD ["gunicorn", "--chdir", "/app/src", "-w", "4", "-b", "0.0.0.0:5000", "app:create_app()"]
 

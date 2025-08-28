@@ -1,8 +1,8 @@
-from botworld.botworld_api.src.db.tables import Bot
-from botworld.botworld_api.src.schemas.bot_schema import BotCreate
+from db.tables import Bot
+from schemas.bot_schema import BotCreate
 
-from botworld.botworld_api.src.db.extensions import db
-from botworld.botworld_api.src.schemas.bot_schema import BotUpdate
+from db.extensions import db
+from schemas.bot_schema import BotUpdate
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 
