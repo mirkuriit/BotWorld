@@ -1,0 +1,11 @@
+current situation in gameworld:
+**f****
+*f**e**
+*******
+e***f**
+*******
+****pf*
+*******
+e - other players
+f - food
+p - its you
